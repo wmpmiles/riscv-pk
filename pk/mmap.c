@@ -26,6 +26,7 @@ static size_t next_free_page;
 static size_t free_pages;
 
 int demand_paging = 1; // unless -p flag is given
+int max_pages = 0;
 
 static uintptr_t __page_alloc()
 {
@@ -168,8 +169,9 @@ static int __handle_page_fault(uintptr_t vaddr, int prot)
 
   pte_t* pte = __walk(vaddr);
 
-  if (pte == 0 || *pte == 0 || !__valid_user_range(vaddr, 1))
-    return -1;
+  if (pte == 0) return -1;
+  else if (*pte == 0) return -2;
+  else if (!__valid_user_range(vaddr, 1)) return -3;
   else if (!(*pte & PTE_V))
   {
     uintptr_t ppn = vpn + (first_free_paddr / RISCV_PGSIZE);
@@ -189,11 +191,14 @@ static int __handle_page_fault(uintptr_t vaddr, int prot)
       memset((void*)vaddr, 0, RISCV_PGSIZE);
     __vmr_decref(v, 1);
     *pte = pte_create(ppn, prot_to_type(v->prot, 1));
+    //max_pages += 1;
+    //printk("Allocated: %d\n", max_pages);
   }
 
   pte_t perms = pte_create(0, prot_to_type(prot, 1));
-  if ((*pte & perms) != perms)
-    return -1;
+  if ((*pte & perms) != perms) {
+    return -4;
+  }
 
   flush_tlb();
   return 0;
@@ -406,9 +411,12 @@ uintptr_t pk_vm_init()
     MIN(DRAM_BASE, mem_size - (first_free_paddr - DRAM_BASE));
 
   size_t stack_size = MIN(mem_pages >> 5, 2048) * RISCV_PGSIZE;
-  size_t stack_bottom = __do_mmap(current.mmap_max - stack_size, stack_size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
+  size_t stack_top = ROUNDUP(current.mmap_max / 4, RISCV_PGSIZE);
+  size_t stack_bottom = __do_mmap(stack_top - stack_size, stack_size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
   kassert(stack_bottom != (uintptr_t)-1);
   current.stack_top = stack_bottom + stack_size;
+
+  __do_mmap(current.stack_top, 2*current.stack_top, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
 
   flush_tlb();
   write_csr(sptbr, ((uintptr_t)root_page_table >> RISCV_PGSHIFT) | SATP_MODE_CHOICE);

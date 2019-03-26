@@ -5,6 +5,12 @@
 #include "syscall.h"
 #include "mmap.h"
 
+static void handle_out_of_bounds(trapframe_t* tf)
+{
+  dump_tf(tf);
+  panic("An out of bounds memory access occurred!");
+}
+
 static void handle_illegal_instruction(trapframe_t* tf)
 {
   tf->insn = *(uint16_t*)tf->epc;
@@ -58,8 +64,13 @@ static void handle_fault_load(trapframe_t* tf)
 
 static void handle_fault_store(trapframe_t* tf)
 {
-  if (handle_page_fault(tf->badvaddr, PROT_WRITE) != 0)
-    segfault(tf, tf->badvaddr, "store");
+  int ret = handle_page_fault(tf->badvaddr, PROT_WRITE);
+  if (ret != 0) {
+    char str[7] = "store";
+    str[6] = 0;
+    str[5] = '0' + (-1 * ret);
+    segfault(tf, tf->badvaddr, str);
+  }
 }
 
 static void handle_syscall(trapframe_t* tf)
@@ -90,6 +101,8 @@ void handle_trap(trapframe_t* tf)
     [CAUSE_MISALIGNED_STORE] = handle_misaligned_store,
     [CAUSE_LOAD_PAGE_FAULT] = handle_fault_load,
     [CAUSE_STORE_PAGE_FAULT] = handle_fault_store,
+    [CAUSE_OUT_OF_BOUNDS] = handle_out_of_bounds,
+
   };
 
   kassert(tf->cause < ARRAY_SIZE(trap_handlers) && trap_handlers[tf->cause]);
