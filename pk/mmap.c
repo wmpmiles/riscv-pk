@@ -254,6 +254,8 @@ uintptr_t __do_mmap(uintptr_t addr, size_t length, int prot, int flags, file_t* 
     *pte = (pte_t)v;
   }
 
+  printk("mmaped %p to %p\n", addr, addr+length);
+
   if (!demand_paging || (flags & MAP_POPULATE))
     for (uintptr_t a = addr; a < addr + length; a += RISCV_PGSIZE)
       kassert(__handle_page_fault(a, prot) == 0);
@@ -398,11 +400,16 @@ uintptr_t pk_vm_init()
   // HTIF address signedness and va2pa macro both cap memory size to 2 GiB
   mem_size = MIN(mem_size, 1U << 31);
   size_t mem_pages = mem_size >> RISCV_PGSHIFT;
-  free_pages = MAX(8, mem_pages >> (RISCV_PGLEVEL_BITS-1));
+  free_pages = MAX(8, mem_pages >> (RISCV_PGLEVEL_BITS-2));
+
+  printk("mem_pages=%d\nfree_pages=%d\n", mem_pages, free_pages);
 
   extern char _end;
   first_free_page = ROUNDUP((uintptr_t)&_end, RISCV_PGSIZE);
   first_free_paddr = first_free_page + free_pages * RISCV_PGSIZE;
+
+  printk("_end=%p\n", &_end);
+  printk("first_free_page=%p\nfirst_free_paddr=%p\n", first_free_page, first_free_paddr);
 
   root_page_table = (void*)__page_alloc();
   __map_kernel_range(DRAM_BASE, DRAM_BASE, first_free_paddr - DRAM_BASE, PROT_READ|PROT_WRITE|PROT_EXEC);
@@ -410,13 +417,17 @@ uintptr_t pk_vm_init()
   current.mmap_max = current.brk_max =
     MIN(DRAM_BASE, mem_size - (first_free_paddr - DRAM_BASE));
 
+  printk("mmap_max=%p\n", current.mmap_max);
+
   size_t stack_size = MIN(mem_pages >> 5, 2048) * RISCV_PGSIZE;
-  size_t stack_top = ROUNDUP(current.mmap_max / 4, RISCV_PGSIZE);
+  size_t stack_top = ROUNDUP(current.mmap_max, RISCV_PGSIZE);
   size_t stack_bottom = __do_mmap(stack_top - stack_size, stack_size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
   kassert(stack_bottom != (uintptr_t)-1);
   current.stack_top = stack_bottom + stack_size;
 
-  __do_mmap(current.stack_top, 2*current.stack_top, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
+  printk("stack_size=%d\nstack_top=%p\n", stack_size, stack_top);
+
+  //__do_mmap(current.stack_top, 2*current.stack_top, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
 
   flush_tlb();
   write_csr(sptbr, ((uintptr_t)root_page_table >> RISCV_PGSHIFT) | SATP_MODE_CHOICE);

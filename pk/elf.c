@@ -63,6 +63,8 @@ void load_elf(const char* fn, elf_info* info)
       max_vaddr = MAX(max_vaddr, ph[i].p_vaddr + ph[i].p_memsz);
   max_vaddr = ROUNDUP(max_vaddr, RISCV_PGSIZE);
 
+  printk("max_vaddr=%p\n", max_vaddr);
+
   // don't load dynamic linker at 0, else we can't catch NULL pointer derefs
   uintptr_t bias = 0;
   if (eh.e_type == ET_DYN)

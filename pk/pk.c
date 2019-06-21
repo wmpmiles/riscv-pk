@@ -152,6 +152,8 @@ static void rest_of_boot_loader(uintptr_t kstack_top)
   current.phdr_size = sizeof(phdrs);
   load_elf(args.argv[0], &current);
 
+  printk("current.brk=%p\n", current.brk);
+
   run_loaded_program(argc, args.argv, kstack_top);
 }
 
