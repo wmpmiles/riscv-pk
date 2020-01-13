@@ -29,6 +29,7 @@ trap_table:
   .dc.a __trap_from_machine_mode
   .dc.a bad_trap
   .dc.a bad_trap
+  .dc.a oob_trap
 
   .option norvc
   .section .text.init,"ax",@progbits

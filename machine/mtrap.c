@@ -21,6 +21,12 @@ void __attribute__((noreturn)) bad_trap(uintptr_t* regs, uintptr_t dummy, uintpt
   die("machine mode: unhandlable trap %d @ %p", read_csr(mcause), mepc);
 }
 
+void oob_trap(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc_val)
+{
+  die("oob trap @ %p", mepc_val);
+  // write_csr(mepc, mepc_val + 4);
+}
+
 static uintptr_t mcall_console_putchar(uint8_t ch)
 {
   if (uart) {
